@@ -14,7 +14,9 @@ Implementar una aplicación que funcione como un contador de frecuencia. El micr
 
 > :warning: Para este trabajo práctico, es necesario tener un LCD de 16x2 o 20x4 que tenga un adaptador de I2C soldado como el siguiente:
 >
-> ![LCD con I2C](https://lastminuteengineers.com/wp-content/uploads/arduino/I2C-LCD-Display-Pinout.png)
+> <div align="center">
+> <img src="https://lastminuteengineers.com/wp-content/uploads/arduino/I2C-LCD-Display-Pinout.png">
+> </div>
 
 ### Primera versión
 
