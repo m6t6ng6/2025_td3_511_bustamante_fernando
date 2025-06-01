@@ -33,6 +33,11 @@ project(firmware C CXX ASM)
 # Initialise the Raspberry Pi Pico SDK
 pico_sdk_init()
 
+# Add external FreeRTOS library/ helper pwm generator library/ lcd libray
+add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../freertos ${CMAKE_BINARY_DIR}/freertos)
+add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../helper ${CMAKE_BINARY_DIR}/helper)
+add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../lcd ${CMAKE_BINARY_DIR}/lcd)
+
 # Add executable. Default name is the project name, version 0.1
 
 add_executable(firmware firmware.c )
@@ -42,11 +47,16 @@ pico_set_program_version(firmware "0.1")
 
 # Modify the below lines to enable/disable output over UART/USB
 pico_enable_stdio_uart(firmware 0)
-pico_enable_stdio_usb(firmware 0)
+pico_enable_stdio_usb(firmware 1)
 
 # Add the standard library to the build
 target_link_libraries(firmware
-        pico_stdlib)
+        pico_stdlib
+        freertos
+        helper
+        lcd
+        hardware_adc
+        )
 
 # Add the standard include files to the build
 target_include_directories(firmware PRIVATE
