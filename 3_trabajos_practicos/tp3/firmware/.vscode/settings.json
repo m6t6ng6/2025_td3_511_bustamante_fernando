@@ -39,6 +39,7 @@
     "files.associations": {
         "*.dbclient-js": "javascript",
         "cstdint": "c",
-        "helper.h": "c"
+        "helper.h": "c",
+        "lcd.h": "c"
     }
 }

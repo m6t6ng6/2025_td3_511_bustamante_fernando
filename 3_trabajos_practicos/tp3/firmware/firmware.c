@@ -1,119 +1,125 @@
 #include "pico/stdlib.h"
-#include "stdio.h"
 #include "FreeRTOS.h"
 #include "task.h"
-#include "semphr.h"
 #include "queue.h"
+#include "stdio.h"
 
+#include "lcd.h"
 #include "helper.h"
 
-#define GPIO_ENTRADA        1
-#define TIEMPO_MEDICION_MS  10000
-#define PERIODO_MUESTREO_MS 1
+// Configuraciones
+#define GPIO_INPUT             1
+#define PERIODO_MEDICION_MS    1000
 
-typedef struct {
-    float frecuencia;
-    float tiempo_medicion;
-    uint32_t raw;
-} datos_medidos;
+// Eleccion de I2C a usar
+#define I2C         i2c0
+// Eleccion de GPIO para SDA
+#define SDA_GPIO    8
+// Eleccion de GPIO para SCL
+#define SCL_GPIO    9
+// Direccion de 7 bits del adaptador del LCD
+#define ADDR        0x27
 
-#pragma GCC optimize ("O0")    // habilito el debugger para que muestre las variables
+// Definición de colas
+QueueHandle_t cola_flancos;
+QueueHandle_t cola_frecuencia;
 
-SemaphoreHandle_t sem_flancos;   // tipo de dato semaforo
-QueueHandle_t queue_frecuencia;   // tipo de dato cola
-
-// Tarea que muestrea el GPIO y detecta flancos ascendentes
-void task_muestreo_gpio(void *pvParameters) {
-    bool estado_anterior = false;  // guardo el estado anterior del GPIO de entrada
-
-    while(1) {
-        bool estado_actual = gpio_get(GPIO_ENTRADA);   // guardo el estado actual del GPIO de entrada, FALSE: 0, TRUE: 1
-
-        // Detectar flanco ascendente
-        if (!estado_anterior && estado_actual) {    // entra al bloque solo si el estado anterior es distinto al estado actual
-            if ( estado_anterior == false ) {
-                xSemaphoreGive(sem_flancos);   // incremento en una unidad el contador interno del semaforo
-            }
-            if ( estado_anterior == true ) {
-                ;  // si es un flanco descendente no hace nada 
-            }
-        }
-
-        estado_anterior = estado_actual;     // carga el estado actual en el estado anterior
-        vTaskDelay(pdMS_TO_TICKS(PERIODO_MUESTREO_MS));   // bloquea la tarea por el tiempo dado, en ete caso 1 segundo, \
-                                                            se desbloquea cuando expira el tiempo y vuelve a tomar una muestra
+// ISR: Detecta flanco ascendente y manda un 1 a la cola
+void gpio_callback(uint gpio, uint32_t events) {
+    if (gpio == GPIO_INPUT && (events & GPIO_IRQ_EDGE_RISE)) {   // ingresa al IF si el puerto es el correcto y si es por un flanco ascendente
+        BaseType_t xHigherPriorityTaskWoken = pdFALSE;   // toma control para que ninguna tarea de mayor prioridad se ejecute, \
+                                                            extremadamente necesario para mantener predecible el flujo
+        uint8_t flanco = 1;   // se crea variable flanco y se le coloca un 1
+        xQueueSendFromISR(cola_flancos, &flanco, &xHigherPriorityTaskWoken);   // se carga el valor 1 en la cola_flancos desde el ISR y \
+                                                                                    esta API pone la variable xHigherPriorityTaskWoken en True para que la tarea que est bloqueada esperando el dato de la cola y permita que tome el control 
+        portYIELD_FROM_ISR(xHigherPriorityTaskWoken);   // es necesario para que salga del ISR automaticamente
     }
 }
 
-// Tarea que mide la frecuencia cada segundo y la envía a una cola
-void task_frecuencia(void *pvParameters) {
-    datos_medidos datos;
+// Tarea que acumula flancos y calcula frecuencia cada segundo
+void tarea_frecuencimetro(void *pvParameters) {
+    uint32_t contador = 0;
+    uint8_t dummy;
 
-    while(1) {
-        uint32_t contador = 0;   // crea contador y lo incializa en 0, TIPO DE DATO: entero sin signo de 32 bits
-        TickType_t tiempo_inicio = xTaskGetTickCount();   // obtiene la cantidad de ticks desde que se inicio el scheduler, tiempo de inicio como referencia
+    TickType_t xLastWakeTime = xTaskGetTickCount();
 
-        while ( xTaskGetTickCount() - tiempo_inicio < pdMS_TO_TICKS(TIEMPO_MEDICION_MS)) {   // compara el tiempo de inicio con el tiempo actual, si es menor al tiempo de medicion definido
-            if (xSemaphoreTake(sem_flancos, pdMS_TO_TICKS(10)) == pdTRUE) {   // si el semaforo contador esta disponible para ser tomado, xSemaphore: sem_flancos, xTicksToWait: equivalente a 10 ms
-                contador++;   // incrementa contador
-                datos.tiempo_medicion = (float) (xTaskGetTickCount() - tiempo_inicio);
+    while (1) {
+        // Contar flancos durante PERIODO_MEDICION_MS
+        while (xTaskGetTickCount() < xLastWakeTime + pdMS_TO_TICKS(PERIODO_MEDICION_MS)) {
+            if (xQueueReceive(cola_flancos, &dummy, pdMS_TO_TICKS(10)) == pdPASS) {
+                contador++;
             }
         }
 
-        datos.raw = contador;
-        datos.frecuencia = (float)contador * 1000.00f * 100.00f / (float)TIEMPO_MEDICION_MS;    // calculo de frecuencia: \
-                                                                                            numero de cuentas      \
-                                                                                            -----------------        *   1000   [Hz]\
-                                                                                            tiempo de medicion (ms)
+        // Enviar resultado a cola de impresión
+        xQueueSend(cola_frecuencia, &contador, portMAX_DELAY);
 
-        // Enviar a la cola
-        xQueueSend(queue_frecuencia, &datos, 0);   // escribe el dato de la variable frecuencia en la cola queue_frecuencia, \
-                                                            xTicksToWait: 0 (que sea inmediata la escritura, o sea que se bloquee 0 ms)
+        contador = 0;
+        xLastWakeTime += pdMS_TO_TICKS(PERIODO_MEDICION_MS);
     }
 }
 
-// Tarea que imprime por consola la frecuencia recibida
-void task_imprimir_usb(void *pvParameters) {
-    datos_medidos datos;   // creo variable de frecuencia recibida
+// Tarea que imprime frecuencia recibida por consola USB
+void tarea_lcd(void *pvParameters) {
+    uint32_t frecuencia;
 
-    uint16_t row = 0;
-
-    while(1) {
-        if (xQueueReceive(queue_frecuencia, &datos, portMAX_DELAY) == pdTRUE) {   // xQueue: recibe el item de la cola queue_frecuencia, \
-                                                                                                    pvBuffer: lo guarda en la variable frecuencia_recibida \
-                                                                                                    xTicksToWait: espera indefinidamente, o sea queda bloqueada indefinidamente hasta que la cola este disopnible
-            printf("muestra: %u | frecuencia: %.2f Hz | tiempo: %.2f ms | raw: %u\n", row, datos.frecuencia, datos.tiempo_medicion, datos.raw);    // imprime el dato por consola usb
-            row++;
+    while (1) {
+        if (xQueueReceive(cola_frecuencia, &frecuencia, portMAX_DELAY) == pdPASS) {
+            printf("Frecuencia medida: %lu Hz\n", frecuencia);
+            // Limpio el LCD
+            lcd_clear();
+            // Escribo al comienzo
+            lcd_string("Freq medicion:");
+            // Muevo el cursor a la segunda fila, tercer columna
+            lcd_set_cursor(3, 2);
+            // Escribo
+            char buffer[20];
+            sprintf(buffer, "%lu Hz", frecuencia);
+            lcd_string(buffer);
         }
     }
 }
 
 // Inicialización GPIO
 void gpio_configurar() {
-    gpio_init(GPIO_ENTRADA);   // habilito GPIO en el GPIO 1
-    gpio_set_dir(GPIO_ENTRADA, GPIO_IN);  // transformo en entrada el puerto GPIO 1
-    gpio_pull_down(GPIO_ENTRADA);   // por defecto toma valores 0 si no hay señal
+    gpio_init(GPIO_INPUT);   // habilito GPIO en el GPIO 1
+    gpio_set_dir(GPIO_INPUT, GPIO_IN);  // transformo en entrada el puerto GPIO 1
+    gpio_pull_down(GPIO_INPUT);   // por defecto toma valores 0 si no hay señal
 }
 
+// Función principal
 int main() {
-    stdio_init_all();    // iniciaLIZA UART, USB, etc
+    stdio_init_all();
     gpio_configurar();   // invoca funcion para inicializar puerto de entrada
 
     pwm_user_init(0, 10000);   // inicio PWM en GPIO 0
 
-    // Crear semáforo y cola
-    sem_flancos = xSemaphoreCreateCounting(10000, 0);   // creo semaforo contador de 10000 posiciones, inicia en posicion 0
-    queue_frecuencia = xQueueCreate(5, sizeof(datos_medidos));   // crea cola de 5 posiciones, cada elemento es compatible con estructura datos_medidos 
+    // Inicializo el I2C con un clock de 100 KHz
+    i2c_init(I2C, 100000);
+    // Habilito la funcion de I2C en los GPIOs
+    gpio_set_function(SDA_GPIO, GPIO_FUNC_I2C);
+    gpio_set_function(SCL_GPIO, GPIO_FUNC_I2C);
+    // Habilito pull-ups
+    gpio_pull_up(SDA_GPIO);
+    gpio_pull_up(SCL_GPIO);
+    // Inicializo LCD
+    lcd_init(I2C, ADDR);
+
+    // Crear colas
+    cola_flancos = xQueueCreate(1024, sizeof(uint8_t));    // 1024 flancos posibles por segundo
+    cola_frecuencia = xQueueCreate(4, sizeof(uint32_t));   // Buffer pequeño, 1 dato por segundo
+
+    // Registrar interrupción
+    gpio_set_irq_enabled_with_callback(GPIO_INPUT, GPIO_IRQ_EDGE_RISE, true, &gpio_callback);   // interfaz de entrada: GPIO_INPUT, \
+                                                                                                    event_mask: (GPIO_IRQ_EDGE_RISE: IRQ cuando la señal transiciona desde 0 a 1), \
+                                                                                                    enabled: (true: habilitado), \
+                                                                                                    callback: (gpio_callback: funcion que se llama cuando se detecta el evento)
 
     // Crear tareas
-    xTaskCreate(task_muestreo_gpio, "Muestreo_GPIO", 1024, NULL, 2, NULL);   // usStackDepth: 4KB, \
-                                                                                pvParameters: no le pasa ningun valor a ningun argumento, \
-                                                                                uxPriority: prioridad maxima, \
-                                                                                pxCreatedTask: no se guarda el handler ya que no vamos a controlar la tarea luego de crearla
-    xTaskCreate(task_frecuencia, "Frecuencia", 1024, NULL, 1, NULL);
-    xTaskCreate(task_imprimir_usb, "Imprimir_USB", 1024, NULL, 1, NULL);
+    xTaskCreate(tarea_frecuencimetro, "Contador_Flancos", 1024, NULL, 2, NULL);
+    xTaskCreate(tarea_lcd, "Impresion_LCD", 1024, NULL, 1, NULL);
 
-    // Iniciar scheduler
+    // Iniciar el scheduler
     vTaskStartScheduler();
 
     while (1);
