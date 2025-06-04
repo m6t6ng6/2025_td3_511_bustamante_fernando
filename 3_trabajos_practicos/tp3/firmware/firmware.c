@@ -93,7 +93,6 @@ int main() {
     gpio_configurar();   // invoca funcion para inicializar puerto de entrada
 
     pwm_user_init(0, 10000);   // inicio PWM en GPIO 0
-
     // Inicializo el I2C con un clock de 100 KHz
     i2c_init(I2C, 100000);
     // Habilito la funcion de I2C en los GPIOs
@@ -123,4 +122,5 @@ int main() {
     vTaskStartScheduler();
 
     while (1);
+
 }
