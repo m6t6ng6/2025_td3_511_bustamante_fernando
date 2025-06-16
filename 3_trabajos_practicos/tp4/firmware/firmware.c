@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include "bmp280.h"
 #include "lcd.h"
+#include "helper.h"
 
 #define I2C_PORT    i2c0    // canal i2c utilizado
 #define SDA_PIN     8       // gpio 8 para SDA
@@ -15,6 +16,10 @@
 SemaphoreHandle_t i2c_mutex;
 
 QueueHandle_t cola_datos;
+
+volatile int pantalla_actual = 0;  // 0 = sensor, 1 = set point & error
+
+void boton_callback(uint gpio, uint32_t events);  // Declaración anticipada
 
 typedef struct {
     int32_t raw_temp;
@@ -35,6 +40,26 @@ void init_i2c(void) {
     // Activar resistencias pull-up internas
     gpio_pull_up(SDA_PIN);
     gpio_pull_up(SCL_PIN);
+}
+
+void boton_callback(uint gpio, uint32_t events) {
+    if (gpio == 14 && (events & GPIO_IRQ_EDGE_RISE)) {
+        pantalla_actual = (pantalla_actual + 1) % 2;  // Toggle entre 0 y 1
+        printf("%d\n", pantalla_actual);
+        gpio_acknowledge_irq(gpio, GPIO_IRQ_EDGE_RISE);
+    }
+}
+
+void configuracion_gpio_boton(void) {
+    // Configuración del botón en GPIO 14
+    gpio_init(14);
+    gpio_set_dir(14, GPIO_IN);
+    gpio_pull_down(14);   // configura pull down
+    gpio_set_irq_enabled_with_callback(14, GPIO_IRQ_EDGE_RISE, true, &boton_callback);   // cuando detecta evento, \
+                                                                                            evento: GPIO_IRQ_EDGE_RISE (flanco ascendente), \
+                                                                                            TRUE: habilita la interrupcion para este GPIO, \
+                                                                                            va a la dirección de memoria en la que la función "boton_callback" se encuentra
+
 }
 
 void task_read_sensor(void *pvParameters) {
@@ -75,7 +100,12 @@ void task_write_lcd(void *pvParameters) {
     while(1){
 
         xSemaphoreTake(i2c_mutex, portMAX_DELAY);
+       
         if (xQueueReceive(cola_datos, &data, portMAX_DELAY) == pdPASS) {
+            
+        }
+            
+        if (pantalla_actual % 2 == 0) {
             // Limpio el LCD
             lcd_clear();
             // Muevo el cursor a la primera fila, columna cero
@@ -90,7 +120,20 @@ void task_write_lcd(void *pvParameters) {
             char buffer1[20];
             sprintf(buffer1, "PRESION: %lu Pa", data.pressure_pa);
             lcd_string(buffer1);
+        } else {
+            lcd_clear();
+            lcd_set_cursor(0,0);
+            lcd_string("Set Point: 25 C");
+            // Muevo el cursor a la segunda fila, columna cero
+            lcd_set_cursor(1, 0);
+            // Escribo
+            char buffer[20];
+            sprintf(buffer, "ERROR: %.2f %%", (((data.temp_c) - (float) 25) / data.temp_c) * 100);
+            lcd_string(buffer);
+            pwm_user_init(10, (int) data.temp_c - 25);   // inicio PWM en GPIO 0
+
         }
+
         printf(" >>> LCD imprime datos\n");
         xSemaphoreGive(i2c_mutex);
         vTaskDelay(pdMS_TO_TICKS(1000));
@@ -101,7 +144,9 @@ void task_write_lcd(void *pvParameters) {
 
 int main() {
 
-    stdio_init_all();   // inicializacion de 
+    stdio_init_all();
+
+    configuracion_gpio_boton();  // configuración de puerto GPIO 14 para introducir funcionalidad en el boton NA
 
     init_i2c(); // inicializacion del canal i2c
 

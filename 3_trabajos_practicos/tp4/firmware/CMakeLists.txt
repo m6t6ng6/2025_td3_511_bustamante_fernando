@@ -37,6 +37,7 @@ pico_sdk_init()
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../freertos ${CMAKE_BINARY_DIR}/freertos)
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../lcd ${CMAKE_BINARY_DIR}/lcd)
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../bmp280 ${CMAKE_BINARY_DIR}/bmp280)
+add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../helper ${CMAKE_BINARY_DIR}/helper)
 
 add_executable(firmware firmware.c )
 
@@ -54,6 +55,7 @@ target_link_libraries(firmware
         freertos
         hardware_i2c
         lcd
+        helper
 )
 
 # Add the standard include files to the build
