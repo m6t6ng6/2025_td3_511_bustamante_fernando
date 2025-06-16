@@ -100,6 +100,7 @@ void task_write_lcd(void *pvParameters) {
 }
 
 int main() {
+
     stdio_init_all();   // inicializacion de 
 
     init_i2c(); // inicializacion del canal i2c
