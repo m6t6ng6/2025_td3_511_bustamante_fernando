@@ -112,7 +112,7 @@ int main() {
     i2c_mutex = xSemaphoreCreateMutex();    // se crea el semaforo mutex
     if (i2c_mutex == NULL) {
         printf("Error al crear mutex\n");
-    while (1);
+        while (1);
     }
 
     cola_datos = xQueueCreate(1, sizeof(sensor_data_t));    // cola que posee una unica posicion de la estructura sensor_data_t
