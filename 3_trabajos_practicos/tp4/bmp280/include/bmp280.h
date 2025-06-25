@@ -1,3 +1,6 @@
+#ifndef _BMP280_H_
+#define _BMP280_H_
+
 #include "hardware/i2c.h"
 #include "pico/binary_info.h"
 #include "pico/stdlib.h"
@@ -76,3 +79,5 @@ void bmp280_get_calib_params(struct bmp280_calib_param* params);
 void bmp280_read_raw(int32_t* raw_temp, int32_t* raw_pressure);
 float bmp280_convert_temp(int32_t temp, struct bmp280_calib_param* params);
 int32_t bmp280_convert_pressure(int32_t pressure, int32_t temp, struct bmp280_calib_param* params);
+
+#endif

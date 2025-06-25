@@ -1,3 +1,6 @@
+#ifndef _LCD_H_
+#define _LCD_H_
+
 #include <stdio.h>
 #include "pico/stdlib.h"
 #include "hardware/i2c.h"
@@ -50,3 +53,5 @@ void lcd_set_cursor(int line, int position);
 void lcd_char(char val);
 void lcd_string(const char *s);
 void lcd_init(i2c_inst_t *i2c, uint8_t address);
+
+#endif
