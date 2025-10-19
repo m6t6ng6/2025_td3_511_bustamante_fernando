@@ -33,12 +33,9 @@ project(freertos_task_params C CXX ASM)
 # Initialise the Raspberry Pi Pico SDK
 pico_sdk_init()
 
-# Add external FreeRTOS library
-add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../freertos ${CMAKE_BINARY_DIR}/freertos)
-
 # Add executable. Default name is the project name, version 0.1
 
-add_executable(freertos_task_params freertos_task_params.c )
+add_executable(freertos_task_params freertos_task_params.c)
 
 pico_set_program_name(freertos_task_params "freertos_task_params")
 pico_set_program_version(freertos_task_params "0.1")
@@ -48,16 +45,18 @@ pico_enable_stdio_uart(freertos_task_params 0)
 pico_enable_stdio_usb(freertos_task_params 1)
 
 # Add the standard library to the build
-target_link_libraries(freertos_task_params
-    pico_stdlib
-    hardware_adc
-    freertos    
-)
+target_link_libraries(freertos_task_params pico_stdlib hardware_adc)
 
 # Add the standard include files to the build
-target_include_directories(freertos_task_params PRIVATE
-    ${CMAKE_CURRENT_LIST_DIR}
-)
+target_include_directories(freertos_task_params PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 
 pico_add_extra_outputs(freertos_task_params)
 
+# Configuración adicional de FreeRTOS de la aplicación (si el archivo existe)
+set(FREERTOS_USER_CONFIG "${CMAKE_CURRENT_LIST_DIR}" CACHE PATH "User FreeRTOSConfig path")
+# Habilito uso de memoria dinámica
+set(FREERTOS_SUPPORT_DYNAMIC_ALLOCATION "ON" CACHE PATH "FreeRTOS dynamic memory implementation support")
+# Añadir la subcarpeta donde está la biblioteca FreeRTOS
+add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../freertos ${CMAKE_BINARY_DIR}/freertos)
+# Agrega dependencia al proyecto
+target_link_libraries(${PROJECT_NAME} freertos)
