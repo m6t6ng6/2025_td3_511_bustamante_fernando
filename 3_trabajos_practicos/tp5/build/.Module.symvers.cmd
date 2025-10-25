@@ -1,0 +1,1 @@
+savedcmd_/home/nahuel/TP_SE/TP5_V1/build/Module.symvers :=  scripts/mod/modpost -M -m -a      -o /home/nahuel/TP_SE/TP5_V1/build/Module.symvers -T /home/nahuel/TP_SE/TP5_V1/build/modules.order -i Module.symvers -e 

@@ -1,0 +1,90 @@
+#!/bin/bash
+
+# Colores para output
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+echo -e "${BLUE}🔄 EJECUCIÓN DEL MÓDULO POR 5 SEGUNDOS${NC}"
+echo "=========================================="
+
+# Función para verificar si el módulo está cargado
+verificar_modulo() {
+    if lsmod | grep -q "kernel_module"; then
+        echo -e "${GREEN}✅ Módulo cargado correctamente${NC}"
+        return 0
+    else
+        echo -e "${RED}❌ Error: Módulo NO está cargado${NC}"
+        return 1
+    fi
+}
+
+# Paso 1: Compilar
+echo -e "${YELLOW}1. Compilando módulo...${NC}"
+make clean
+make all
+
+if [ $? -ne 0 ]; then
+    echo -e "${RED}❌ Error en la compilación${NC}"
+    exit 1
+fi
+echo -e "${GREEN}✅ Compilación exitosa${NC}"
+echo ""
+
+# Paso 2: Limpiar buffer del kernel
+echo -e "${YELLOW}2. Limpiando buffer del kernel...${NC}"
+sudo dmesg -C
+echo -e "${GREEN}✅ Buffer limpiado${NC}"
+echo ""
+
+# Paso 3: Cargar módulo
+echo -e "${YELLOW}3. Cargando módulo (los hilos empezarán a ejecutarse)...${NC}"
+make insmod
+
+# Verificar directamente con nuestra función
+if verificar_modulo; then
+    echo ""
+else
+    echo -e "${RED}❌ Error al cargar el módulo${NC}"
+    exit 1
+fi
+
+# Paso 4: Esperar 5 segundos mostrando cuenta regresiva
+echo -e "${YELLOW}4. Ejecutando por 5 segundos...${NC}"
+for i in {5..1}; do
+    echo "⏰ Tiempo restante: ${i} segundos"
+    sleep 1
+done
+echo -e "${GREEN}✅ Tiempo de ejecución completado${NC}"
+echo ""
+
+# Paso 5: Mostrar mensajes generados durante la ejecución
+echo -e "${YELLOW}5. Mensajes generados durante la ejecución:${NC}"
+echo "----------------------------------------"
+make dmesg
+echo "----------------------------------------"
+echo ""
+
+# Paso 6: Descargar módulo
+echo -e "${YELLOW}6. Descargando módulo...${NC}"
+make rmmod
+
+# Verificar que se descargó
+if lsmod | grep -q "kernel_module"; then
+    echo -e "${RED}❌ Error: Módulo sigue cargado${NC}"
+else
+    echo -e "${GREEN}✅ Módulo descargado${NC}"
+fi
+echo ""
+
+# Paso 7: Mostrar mensajes finales
+echo -e "${YELLOW}7. Mensajes finales:${NC}"
+echo "----------------------------------------"
+make dmesg
+echo "----------------------------------------"
+echo ""
+
+echo -e "${BLUE}🎯 EJECUCIÓN COMPLETADA EXITOSAMENTE${NC}"
+echo -e "${GREEN}Los hilos ejecutaron durante exactamente 5 segundos${NC}"

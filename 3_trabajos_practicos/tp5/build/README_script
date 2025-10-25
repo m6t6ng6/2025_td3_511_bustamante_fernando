@@ -1,0 +1,8 @@
+# 1. Crear el archivo
+nano ejecutar_5segundos.sh
+
+# 2. Hacer ejecutable
+chmod +x ejecutar_5segundos.sh
+
+# 3. Ejecutar
+./ejecutar_5segundos.sh
