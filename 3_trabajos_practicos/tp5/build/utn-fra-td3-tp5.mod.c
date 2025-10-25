@@ -18,15 +18,20 @@ __section(".gnu.linkonce.this_module") = {
 
 static const struct modversion_info ____versions[]
 __used __section("__versions") = {
-	{ 0x122c3a7e, "_printk" },
+	{ 0x2f5de9ec, "param_ops_uint" },
+	{ 0xedc03953, "iounmap" },
+	{ 0xaf56600a, "arm64_use_ng_mappings" },
+	{ 0xb3f7646e, "kthread_should_stop" },
+	{ 0x20bc8744, "wake_up_process" },
+	{ 0x92997ed8, "_printk" },
+	{ 0xd45b3bc6, "kthread_stop" },
+	{ 0xcb661d89, "kthread_create_on_node" },
+	{ 0x40863ba1, "ioremap_prot" },
 	{ 0xf9a482f9, "msleep" },
-	{ 0x678b0c30, "kthread_create_on_node" },
-	{ 0x5a543dd9, "wake_up_process" },
-	{ 0x7135ea23, "kthread_stop" },
-	{ 0x39ff040a, "module_layout" },
+	{ 0x474e54d2, "module_layout" },
 };
 
 MODULE_INFO(depends, "");
 
 
-MODULE_INFO(srcversion, "717E0B6802913C9BD2D933F");
+MODULE_INFO(srcversion, "525C06A224FC505F7CF9EBF");

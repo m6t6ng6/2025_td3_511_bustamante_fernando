@@ -1,0 +1,1 @@
+savedcmd_/home/grupo9/TP5_V2/build/utn-fra-td3-tp5.o := aarch64-linux-gnu-ld -EL  -maarch64elf -z noexecstack --no-warn-rwx-segments   -r -o /home/grupo9/TP5_V2/build/utn-fra-td3-tp5.o @/home/grupo9/TP5_V2/build/utn-fra-td3-tp5.mod 

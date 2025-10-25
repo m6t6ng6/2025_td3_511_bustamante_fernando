@@ -1,0 +1,1 @@
+savedcmd_/home/grupo9/TP5_V2/build/utn-fra-td3-tp5.ko := aarch64-linux-gnu-ld -r -EL  -maarch64elf -z noexecstack --no-warn-rwx-segments --build-id=sha1  -T arch/arm64/module.lds -o /home/grupo9/TP5_V2/build/utn-fra-td3-tp5.ko /home/grupo9/TP5_V2/build/utn-fra-td3-tp5.o /home/grupo9/TP5_V2/build/utn-fra-td3-tp5.mod.o /home/grupo9/TP5_V2/build/.module-common.o
