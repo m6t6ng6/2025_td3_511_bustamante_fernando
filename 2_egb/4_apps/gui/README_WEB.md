@@ -1,0 +1,1 @@
+Esta carpeta contiene la interfaz grafica usada para la pagina web, se utilizo flask de Puthon para su creacion

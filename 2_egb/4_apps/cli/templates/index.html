@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Flotador Neumatico Control</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            height: 100vh;
+            margin: 0;
+            padding: 2rem;
+        }
+
+        h2 {
+            margin-bottom: 1rem;
+        }
+
+        .contenedor {
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            width: 100%;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .seccion {
+            background-color: white;
+            padding: 1.5rem;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            margin: 0 1rem;
+            text-align: center;
+            width: 200px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .valor {
+            font-size: 2rem;
+            margin-bottom: 1.2rem;
+        }
+
+        form {
+            margin: 0.4rem 0;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+        }
+
+        button {
+            font-size: 1.1rem;
+            padding: 0.6rem 1.2rem;     /* más espacio vertical y horizontal */
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            color: white;
+            min-width: 130px;           /* ancho mínimo para que no se recorte el texto */
+            min-height: 45px;           /* altura mínima consistente */
+            transition: all 0.2s ease-in-out;
+            white-space: nowrap;        /* evita saltos de línea */
+        }
+
+        button:hover {
+            transform: scale(1.05);
+            opacity: 0.9;
+        }
+
+        .azul {
+            background-color: #007BFF;
+        }
+
+        .verde {
+            background-color: #28A745;
+        }
+
+        .abajo {
+            margin-top: 2.5rem;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="contenedor">
+        <!-- SECCIÓN TARGET -->
+        <div class="seccion">
+            <h2>TARGET</h2>
+            <div class="valor">{{ target }}</div>
+            <form action="{{ url_for('target_inc') }}" method="post">
+                <button class="azul" type="submit">Incrementar</button>
+            </form>
+            <form action="{{ url_for('target_dec') }}" method="post">
+                <button class="azul" type="submit">Decrementar</button>
+            </form>
+        </div>
+
+        <!-- SECCIÓN MÍNIMO -->
+        <div class="seccion">
+            <h2>MÍNIMO</h2>
+            <div class="valor">{{ minimo }}</div>
+            <form action="{{ url_for('minimo_inc') }}" method="post">
+                <button class="azul" type="submit">Incrementar</button>
+            </form>
+            <form action="{{ url_for('minimo_dec') }}" method="post">
+                <button class="azul" type="submit">Decrementar</button>
+            </form>
+        </div>
+
+        <!-- SECCIÓN MÁXIMO -->
+        <div class="seccion">
+            <h2>MÁXIMO</h2>
+            <div class="valor">{{ maximo }}</div>
+            <form action="{{ url_for('maximo_inc') }}" method="post">
+                <button class="azul" type="submit">Incrementar</button>
+            </form>
+            <form action="{{ url_for('maximo_dec') }}" method="post">
+                <button class="azul" type="submit">Decrementar</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- BOTÓN EJECUTAR -->
+    <form action="{{ url_for('ejecutar') }}" method="post" class="abajo">
+        <button class="verde" type="submit">EJECUTAR</button>
+    </form>
+
+    <!-- BOTONES DE LOGS -->
+    <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+        <form action="{{ url_for('ver_logs') }}" method="get" target="_blank">
+            <button class="azul" type="submit">VER LOGS</button>
+        </form>
+        <form action="{{ url_for('ver_conexiones') }}" method="get" target="_blank">
+            <button class="azul" type="submit">VER CONEXIONES</button>
+        </form>
+    </div>
+
+    <!-- PIE DE PÁGINA -->
+    <footer style="
+    margin-top: 3rem;
+    font-size: 0.9rem;
+    color: #555;
+    text-align: center;
+    ">
+        UTN FRA - TD3 - GRUPO 9 - BUSTAMANTE, PORTAS - 2025
+    </footer>
+
+</body>
+</html>

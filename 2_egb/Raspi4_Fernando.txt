@@ -1,0 +1,7 @@
+Hostname: td3raspi4
+Usuario: grupo9
+Contraseña: peperina
+
+RED INALAMBRICA
+SSID: M6t6ng6
+Contraseña: peperina11

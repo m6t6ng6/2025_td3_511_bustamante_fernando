@@ -1,0 +1,290 @@
+from flask import Flask, render_template, redirect, url_for, Response, request, jsonify
+from datetime import datetime
+import os
+import logging
+import serial
+import time
+
+app = Flask(__name__)
+
+# Variables globales
+target = 5
+minimo = 4
+maximo = 6
+
+# Archivos de logs y estado
+ruta_historial = "comandos_logs.csv"
+ruta_estado = "current_state.csv"
+ruta_conexiones = "flask_connections.log"
+ruta_modulo = "/dev/ttyS0"
+
+# === CONFIGURAR LOGGING DE FLASK ===
+logging.basicConfig(
+    filename=ruta_conexiones,
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+)
+log = logging.getLogger()
+
+# Variable global para conexión UART
+uart_connection = None
+
+# === INICIALIZAR UART ===
+def inicializar_uart():
+    global uart_connection
+    try:
+        uart_connection = serial.Serial(
+            port=ruta_modulo,
+            baudrate=115200,  # CAMBIADO de 9600 a 115200 para coincidir con el driver
+            parity=serial.PARITY_NONE,
+            stopbits=serial.STOPBITS_ONE,
+            bytesize=serial.EIGHTBITS,
+            timeout=1,
+            write_timeout=1
+        )
+        # Pequeña pausa para inicialización
+        time.sleep(0.5)
+        log.info("✅ Conexión UART inicializada correctamente a 115200 bauds")
+        return True
+    except Exception as e:
+        log.error(f"❌ Error inicializando UART: {str(e)}")
+        uart_connection = None
+        return False
+
+# === VERIFICAR CONEXIÓN UART ===
+def verificar_conexion_uart():
+    """Verificar que la conexión UART esté activa"""
+    global uart_connection
+    if uart_connection is None or not uart_connection.is_open:
+        return inicializar_uart()
+    return True
+
+# === ENVIAR POR UART ===
+def enviar_uart(comando):
+    global uart_connection
+    
+    # Si no hay conexión, intentar inicializar
+    if not verificar_conexion_uart():
+        return False
+    
+    try:
+        # Asegurarse de que la conexión esté abierta
+        if not uart_connection.is_open:
+            uart_connection.open()
+        
+        # Enviar comando
+        comando_formateado = comando + '\n'
+        uart_connection.write(comando_formateado.encode())
+        uart_connection.flush()
+        
+        log.info(f"📤 UART enviado: {comando}")
+        return True
+        
+    except Exception as e:
+        log.error(f"❌ Error enviando por UART: {str(e)}")
+        uart_connection = None  # Forzar reconexión
+        return False
+
+# === ENVIAR COMANDO SEGURO CON REINTENTOS ===
+def enviar_comando_seguro(comando, max_reintentos=3):
+    """Enviar comando con reintentos en caso de fallo"""
+    for intento in range(max_reintentos):
+        if enviar_uart(comando):
+            return True
+        else:
+            log.warning(f"🔄 Reintentando envío UART ({intento + 1}/{max_reintentos})")
+            time.sleep(0.5)
+    
+    log.error(f"❌ Fallo en envío UART después de {max_reintentos} intentos")
+    return False
+
+# === LEER RESPUESTA UART ===
+def leer_respuesta_uart():
+    """Intentar leer respuesta del Pico si hay datos disponibles"""
+    global uart_connection
+    try:
+        if uart_connection and uart_connection.in_waiting > 0:
+            respuesta = uart_connection.readline().decode().strip()
+            if respuesta:
+                log.info(f"📥 Pico responde: {respuesta}")
+                return respuesta
+    except Exception as e:
+        log.warning(f"⚠️ Error leyendo respuesta UART: {e}")
+    return None
+
+# Crear encabezado de CSV si no existe
+if not os.path.exists(ruta_historial):
+    with open(ruta_historial, "w") as f:
+        f.write("timestamp,set_target,set_minimo,set_maximo\n")
+
+# Intentar inicializar UART al inicio
+inicializar_uart()
+
+@app.route('/')
+def index():
+    log.info("Acceso a la página principal")
+    return render_template('index.html', target=target, minimo=minimo, maximo=maximo)
+
+# === TARGET ===
+@app.route('/target/incrementar', methods=['POST'])
+def target_inc():
+    global target, minimo, maximo
+    if target < 28:
+        target += 1
+        if minimo >= target:
+            minimo = max(5, target - 1)
+        if maximo <= target:
+            maximo = min(33, target + 1)
+    log.info(f"Incrementar TARGET → {target}")
+    return redirect(url_for('index'))
+
+@app.route('/target/decrementar', methods=['POST'])
+def target_dec():
+    global target, minimo, maximo
+    if target > 5:
+        target -= 1
+        if minimo >= target:
+            minimo = max(5, target - 1)
+        if maximo <= target:
+            maximo = min(33, target + 1)
+    log.info(f"Decrementar TARGET → {target}")
+    return redirect(url_for('index'))
+
+# === MÍNIMO ===
+@app.route('/minimo/incrementar', methods=['POST'])
+def minimo_inc():
+    global minimo, target
+    if minimo < target - 1:
+        minimo += 1
+    log.info(f"Incrementar MINIMO → {minimo}")
+    return redirect(url_for('index'))
+
+@app.route('/minimo/decrementar', methods=['POST'])
+def minimo_dec():
+    global minimo
+    if minimo > 5:
+        minimo -= 1
+    log.info(f"Decrementar MINIMO → {minimo}")
+    return redirect(url_for('index'))
+
+# === MÁXIMO ===
+@app.route('/maximo/incrementar', methods=['POST'])
+def maximo_inc():
+    global maximo
+    if maximo < 33:
+        maximo += 1
+    log.info(f"Incrementar MAXIMO → {maximo}")
+    return redirect(url_for('index'))
+
+@app.route('/maximo/decrementar', methods=['POST'])
+def maximo_dec():
+    global maximo, target
+    if maximo > target + 1:
+        maximo -= 1
+    log.info(f"Decrementar MAXIMO → {maximo}")
+    return redirect(url_for('index'))
+
+# === EJECUTAR ===
+@app.route('/ejecutar', methods=['POST'])
+def ejecutar():
+    global target, minimo, maximo
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # Guardar en logs
+    with open(ruta_historial, "a") as f:
+        f.write(f"{timestamp},set target {target},set minimo {minimo},set maximo {maximo}\n")
+
+    # Guardar estado actual
+    with open(ruta_estado, "w") as f:
+        f.write(f"set target {target}, set minimo {minimo}, set maximo {maximo}")
+
+    # ENVÍO UART MEJORADO CON REINTENTOS
+    comando = f"SP:{target},SM:{maximo},Sm:{minimo}"
+    if enviar_comando_seguro(comando):
+        log.info(f"✅ Comando enviado correctamente: {comando}")
+        
+        # Intentar leer respuesta del Pico
+        time.sleep(0.2)  # Dar tiempo para respuesta
+        respuesta = leer_respuesta_uart()
+        if respuesta:
+            log.info(f"✅ Pico confirmó: {respuesta}")
+    else:
+        log.error(f"❌ No se pudo enviar comando por UART: {comando}")
+
+    log.info(f"EJECUTAR → target={target}, minimo={minimo}, maximo={maximo}")
+    return redirect(url_for('index'))
+
+# === COMANDO PERSONALIZADO ===
+@app.route('/comando_personalizado', methods=['POST'])
+def comando_personalizado():
+    """Endpoint para enviar comandos personalizados como en el script Python"""
+    comando = request.form.get('comando', '').strip()
+    if comando:
+        if enviar_comando_seguro(comando):
+            log.info(f"✅ Comando personalizado enviado: {comando}")
+            
+            # Leer respuesta si existe
+            time.sleep(0.2)
+            respuesta = leer_respuesta_uart()
+            
+            return jsonify({
+                "status": "success", 
+                "message": f"Comando '{comando}' enviado",
+                "respuesta": respuesta
+            })
+        else:
+            return jsonify({"status": "error", "message": "Error al enviar comando"})
+    return jsonify({"status": "error", "message": "Comando vacío"})
+
+# === VER LOGS ===
+@app.route('/logs')
+def ver_logs():
+    try:
+        with open(ruta_historial, "r") as f:
+            contenido = f.read()
+        return Response(contenido, mimetype='text/plain')
+    except Exception as e:
+        return f"Error leyendo logs: {e}"
+
+# === VER CONEXIONES ===
+@app.route('/conexiones')
+def ver_conexiones():
+    try:
+        with open(ruta_conexiones, "r") as f:
+            contenido = f.read()
+        return Response(contenido, mimetype='text/plain')
+    except Exception as e:
+        return f"Error leyendo conexiones: {e}"
+
+# === ESTADO DEL SISTEMA ===
+@app.route('/estado_sistema')
+def estado_sistema():
+    """Endpoint para verificar el estado del sistema UART"""
+    estado_uart = "Conectado" if (uart_connection and uart_connection.is_open) else "Desconectado"
+    
+    info_sistema = {
+        "uart_estado": estado_uart,
+        "puerto": ruta_modulo,
+        "baudrate": 115200,
+        "target_actual": target,
+        "minimo_actual": minimo,
+        "maximo_actual": maximo
+    }
+    
+    return jsonify(info_sistema)
+
+# === CERRAR UART AL SALIR ===
+import atexit
+
+@atexit.register
+def cerrar_uart():
+    global uart_connection
+    if uart_connection and uart_connection.is_open:
+        uart_connection.close()
+        log.info("🔌 Conexión UART cerrada correctamente")
+
+if __name__ == '__main__':
+    log.info("🚀 Servidor Flask iniciado con soporte UART mejorado")
+    app.run(host='0.0.0.0', port=5002, debug=True)
+    # http://192.168.0.11:5002/
+    #http://td3raspi4.local:5002/
